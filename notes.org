@@ -22,6 +22,8 @@ todo: (+ reach)
   a 3d figure for our shader (+ a second figure)
   state transitions: start/end a match
 
+  audio
+
 notes
 
 joysticks
