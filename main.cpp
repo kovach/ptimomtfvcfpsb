@@ -1,6 +1,3 @@
-// TODO
-// Y: dodge
-// a attack, b grab
 #include <SFML/Graphics.hpp>
 #include <SFML/System/Vector2.hpp>
 #include <iostream>
@@ -9,13 +6,15 @@
 
 using namespace std;
 
-
 int maxValuation = 4;
+
+string titleString = "PETER THIEL IS MADE OF MONEY\nA VC Fueled Post-Singularity Brawler";
+
 sf::Color valuationColors[] = {
     sf::Color::Red,
     sf::Color(255,128,0,255),
+    sf::Color(200,188,0,255),
     sf::Color::Yellow,
-    sf::Color::Green,
     sf::Color::Green
 };
 
@@ -33,8 +32,9 @@ void initValuationNames()
     valuations[2].push_back("PIVOT");
     valuations[2].push_back("REFUTED BY SCIENCE");
     valuations[3].push_back("CTO LEFT");
-    valuations[4].push_back("SERIES A");
-    valuations[4].push_back("YCOMBINATOR");
+    valuations[3].push_back("SERIES A");
+    valuations[4].push_back("GREAT IDEA!");
+    valuations[4].push_back("BOUNDLESS OPTIMISM");
 }
     
 
@@ -94,12 +94,22 @@ bool getJumpButton(int id)
 //    return sf::Joystick::isButtonPressed(id, 3);
 //}
 
-float getAttackButton(int id)
+int getAttackButton(int id)
 {
     return sf::Joystick::isButtonPressed(id, 0);
 }
 
-float getGrabButton(int id)
+int getStartButton(int id)
+{
+    return sf::Joystick::isButtonPressed(id, 7);
+}
+
+int getSelectButton(int id)
+{
+    return sf::Joystick::isButtonPressed(id, 6);
+}
+
+int getGrabButton(int id)
 {
     return sf::Joystick::isButtonPressed(id, 1);
 }
@@ -168,6 +178,12 @@ enum MotionState {
 string MotionStates[] = {
     "MS_Free", "MS_Struck"
 };
+enum GameState {
+    GS_Starting, GS_Playing, GS_Ending
+};
+string GameStates[] = {
+    "GS_Starting", "GS_Playing", "GS_Ending"
+};
 // todo needed?
 //enum JumpEdge {
 //    StopJump, StartJump, NoEdge
@@ -185,16 +201,18 @@ public:
     AttackState attack;
     MotionState motion;
 
-    int facing; // TODO
-
     // Main state
     sf::Vector2f p;
     sf::Vector2f v;
     float radius;
     int valuation;
     string valuationLabel;
+    bool dead;
+    bool hasHit;
 
     sf::Vector2f arm;
+
+    sf::Vector2u windowDim;
 
     // State machine timing state
     int crouchDuration;
@@ -211,30 +229,40 @@ public:
     const static float maxStruck = fps/4;
 
     // General Parameters
-    const static float maxVertical = 5000;
-    const static float maxHorizontal = 3500;
+    const static float maxVertical = 2200;
+    const static float maxHorizontal = 2200;
     const static float maxDodgeHorizontal = 7000;
     const static float gravity = 15000.f;
-    const static float jumpForce = 25000.f;
-    const static float attackRange = 800.f;
+    const static float jumpForce = 250000.f;
+    const static float attackRange = 1800.f;
     const static float strikeForce = 1820.f;
 
 
-    ControlState()
+    ControlState(sf::Vector2u dim)
     {
-        resetJump();
+        windowDim = dim;
+        radius = 200.;
+
+        reset();
+    }
+
+    void reset()
+    {
         jump = Floating;
+        resetJump();
         resetLunge();
         resetAttack();
         resetMotion();
 
-        radius = 100.;
+        dead = false;
         p.x = 0.f;
         p.y = 0.f;
         v.x = 0.f;
         v.y = 0.f;
+        //valuation = 0;
         valuation = maxValuation;
         updateValuationLabel();
+        initX(windowDim.x);
     }
 
     void initX(int max)
@@ -267,9 +295,10 @@ public:
 
     void initiateAttack()
     {
+        hasHit = false;
         sf::Vector2f vec(getJoyX(id), getJoyY(id));
         float r = sqrt(vec.x*vec.x+vec.y*vec.y);
-        attackStart = p;
+        attackStart = getCenter();
         if (r < 0.05f)
             attackEnd = attackStart;
         else
@@ -278,14 +307,14 @@ public:
 
     sf::Vector2f getCenter()
     {
-        return p;
+        return p+sf::Vector2f(-18,120);
     }
 
     void stateUpdate()
     {
         // Update jump
         if (getJumpButton(id)) {
-            if (jump == Ground) {
+            if (jump == Ground || jump == Floating) {
                 jump = Crouching;
                 crouchDuration = 0;
             }
@@ -341,7 +370,7 @@ public:
                     float t = (float)attackDuration / maxAttack;
                     float r = strike(t);
                     sf::Vector2f p1 = attackStart * (1.f - r) + attackEnd * r;
-                    sf::Vector2f p2 = p1 * (1.f - t) + p * t;
+                    sf::Vector2f p2 = p1 * (1.f - t) + getCenter() * t;
                     arm = p2;
                 }
                 break;
@@ -386,6 +415,7 @@ public:
                 //    break;
                 case Crouching:
                     newV.y += jumpForce * dt;
+                    newV.y = clamp (-maxVertical, maxVertical, newV.y);
                     break;
             }
         }
@@ -457,10 +487,22 @@ public:
     {
         valuationLabel = valuations[valuation][rand() % valuations[valuation].size()];
     }
+    void decrementValuationLabel()
+    {
+        valuation--;
+        if (valuation < 0) {
+            dead = true;
+            valuation = 0;
+        }
+        updateValuationLabel();
+    }
     void doHit(ControlState &target)
     {
-        if (target.motion == MS_Struck)
+        if (hasHit)
             return;
+        hasHit = true;
+        //if (target.motion == MS_Struck)
+        //    return;
         sf::Vector2f v = arm - p;
         v = normalize(v) * strikeForce;
         v.y = -v.y;
@@ -475,9 +517,7 @@ public:
                 break;
         }
         target.motion = MS_Struck;
-        target.valuation--;
-        target.updateValuationLabel();
-        if (target.valuation < 0) target.valuation = 0;
+        target.decrementValuationLabel();
         target.v = v;
     }
 };
@@ -504,30 +544,51 @@ class Char : public sf::Drawable
 {
 public:
     sf::Vector2u windowDim;
+    ControlState controller;
+
+    sf::Font s_font;
+    sf::Text m_text;
+    sf::Shader m_shader;
+
+    sf::Texture m_texture;
+    sf::Sprite m_sprite;
+
 
     Char(int myid, sf::Vector2u dim, bool showText)
+        : controller(dim)
     {
         controller.id = myid;
 
-        // Graphics state
         if (!s_font.loadFromFile("noto.ttf"))
             exit(22);
         m_text.setFont(s_font);
-        m_text.setCharacterSize(60);
-        m_text.setColor(sf::Color(0,255,0,255));
+
         windowDim = dim;
 
         if (!m_texture.loadFromFile("pt-crop.jpg"))
             exit(23);
         m_sprite.setTexture(m_texture);
-        m_sprite.setScale(0.25f, 0.25f);
-        m_sprite.setPosition(300, 300);
+        m_sprite.setScale(0.5f, 0.5f);
+        //m_sprite.setPosition(300, 300);
 
-        // Game state
-        controller.initX(dim.x);
+        // Load the shader
+        if (!m_shader.loadFromFile("text.frag", sf::Shader::Fragment))
+            exit(22);
+        m_shader.setParameter("texture", sf::Shader::CurrentTexture);
+
+        reset();
     }
     virtual ~Char()
     {
+    }
+
+    void reset()
+    {
+        m_text.setCharacterSize(60);
+        m_text.setColor(sf::Color(0,255,0,255));
+
+        // Game state
+        controller.reset();
     }
     void update(float time)
     {
@@ -535,7 +596,8 @@ public:
 
         controller.update(dt);
 
-        m_sprite.setPosition(controller.p.x, controller.p.y);
+        m_sprite.setPosition(controller.p.x-controller.radius,
+                controller.p.y-controller.radius);
 
         m_text.setColor(valuationColors[controller.valuation]);
         m_text.setString(controller.valuationLabel);
@@ -558,14 +620,19 @@ public:
             << state() << endl
             << controller.toString(time) << endl;
 
+        sf::Color mainColor = valuationColors[controller.valuation];
+        m_shader.setParameter("shading", mainColor.r/255.f, mainColor.g/255.f, mainColor.b/255.f); 
+
         //m_text.setString(s.str());
     }
     void drawArm(sf::RenderTarget& target, sf::RenderStates states) const
     {
         float x = controller.arm.x;
         float y = controller.arm.y;
-        float r = 22.f;
+        float r = 32.f;
         sf::CircleShape shape(r);
+        sf::Text dollar;
+        dollar.setString("$");
         if (controller.attack == AS_Ready)
             shape.setFillColor(sf::Color(0,204,102,255));
         else if (controller.attack == AS_Striking)
@@ -574,6 +641,12 @@ public:
             shape.setFillColor(sf::Color(255,128,0,255));
         shape.setPosition(x-r, y-r);
         target.draw(shape);
+
+        dollar.setPosition(x-r+15, y-r-8);
+        dollar.setCharacterSize(60);
+        dollar.setColor(sf::Color::White);
+        dollar.setFont(s_font);
+        target.draw(dollar);
     }
     void drawStatus(sf::RenderTarget& target, sf::RenderStates states) const
     {
@@ -581,25 +654,21 @@ public:
     void draw(sf::RenderTarget& target, sf::RenderStates states) const
     {
         target.draw(m_text, states);
-        //target.draw(m_sprite);
+        states.shader = &m_shader;
+
+        target.draw(m_sprite, states);
+        states.shader = NULL;
+
         float x = controller.p.x;
         float y = controller.p.y;
         float r = controller.radius;
         sf::CircleShape shape(r);
         shape.setFillColor(sf::Color(0,222,0,128));
         shape.setPosition(x-r, y-r);
-        target.draw(shape);
+        //target.draw(shape);
 
         drawArm(target, states);
     }
-
-    ControlState controller;
-
-    sf::Font s_font;
-    sf::Text m_text;
-
-    sf::Texture m_texture;
-    sf::Sprite m_sprite;
 
     string state()
     {
@@ -619,6 +688,122 @@ public:
     //}
 };
 
+class Game : public sf::Drawable
+{
+public:
+    sf::Font s_font;
+    sf::Text m_text;
+
+    GameState state;
+
+    Char thing1;
+    Char thing2;
+
+    int endDuration;
+    int endRate;
+
+    int dying;
+
+    sf::Vector2u windowDim;
+
+    Game(sf::Vector2u dim) :
+        thing1(0, dim, true), thing2(1, dim, false)
+    {
+        windowDim = dim;
+        // Graphics state
+        if (!s_font.loadFromFile("noto.ttf"))
+            exit(22);
+        m_text.setFont(s_font);
+
+        endRate = 60*10;
+        resetGame();
+    }
+
+    void resetGame()
+    {
+        // Title text
+        m_text.setString(titleString);
+        m_text.setCharacterSize(100);
+        m_text.setColor(sf::Color(0,255,0,255));
+        sf::FloatRect bounds = m_text.getLocalBounds();
+        m_text.setPosition(windowDim.x/2 - bounds.width/2., windowDim.y/2-bounds.height/2);
+        // Game state
+        state = GS_Starting;
+        dying = -1;
+        endDuration = 0;
+        // Char state
+        thing1.reset();
+        thing2.reset();
+
+    }
+
+    void checkDeath()
+    {
+        if (thing1.controller.dead)
+            dying = 0;
+        if (thing2.controller.dead)
+            dying = 1;
+        if (dying != -1) {
+            state = GS_Ending;
+            update();
+        }
+    }
+    void updatePixelation(float r)
+    {
+        // TODO
+    }
+    void update()
+    {
+        switch(state)
+        {
+            case GS_Starting:
+                if (getStartButton(0) || getStartButton(1)) {
+                    state = GS_Playing;
+                }
+                break;
+            case GS_Playing:
+                thing1.update(0);
+                thing2.update(0);
+                collision(thing1.controller, thing2.controller);
+                checkDeath();
+                break;
+            case GS_Ending:
+                endDuration++;
+                float r = (float)endDuration / endRate;
+                sf::Text *t = (dying == 0) ? &thing1.m_text : &thing2.m_text;
+                m_text.setString(t->getString());
+                m_text.setColor(sf::Color(255,0,0,255));
+                m_text.setCharacterSize((1.-r) * 40 + r * 300);
+                sf::FloatRect bounds = m_text.getLocalBounds();
+                sf::Vector2f targetPos(windowDim.x/2. - bounds.width/2., windowDim.y/2.-bounds.height/2.);
+                sf::Vector2f p = 2*r*targetPos + (1.f-2.f*r) * t->getPosition();
+                updatePixelation(r);
+                m_text.setPosition(p.x, p.y);
+                if (getSelectButton(0) || getSelectButton(1)) {
+                    resetGame();
+                }
+                break;
+        }
+    }
+    void draw(sf::RenderTarget& target, sf::RenderStates states) const
+    {
+        switch(state)
+        {
+            case GS_Starting:
+                target.draw(m_text);
+                break;
+            case GS_Playing:
+                target.draw(thing1);
+                target.draw(thing2);
+                break;
+            case GS_Ending:
+                target.draw(m_text);
+                break;
+        }
+    }
+};
+
+
 void mainUpdate(Char &t1, Char &t2)
 {
     t1.update(0);
@@ -629,35 +814,21 @@ void mainUpdate(Char &t1, Char &t2)
 
 int main()
 {
-    sf::RenderWindow window(sf::VideoMode(200, 200), "SFML works!");
     srand(time(0));
-
-    //sf::CircleShape shape(100.f);
-    //shape.setFillColor(sf::Color::Green);
+    sf::RenderWindow window(sf::VideoMode(200, 200), "SFML works!");
+    window.setFramerateLimit(fps);
 
     initValuationNames();
 
     sf::Vector2u dim = window.getSize();
 
-    sf::RectangleShape ground;
-    ground.setSize(sf::Vector2f(dim.x, 22));
-    ground.setPosition(0.,groundLevel);
-    ground.setFillColor(sf::Color(255,128,0,255));
+    //sf::RectangleShape ground;
+    //ground.setSize(sf::Vector2f(dim.x, 22));
+    //ground.setPosition(0.,groundLevel);
+    //ground.setFillColor(sf::Color(255,128,0,255));
 
-    //for (float f = 0.; f < 1.; f += 0.01)
-    //    cout << strike(f) << endl;
-    //exit(0);
+    Game game(dim);
 
-    int c = 0;
-
-    window.setFramerateLimit(fps);
-
-    float offset = 200.f;
-    Char thing(0, dim, true);
-    Char thing2(1, dim, false);
-
-    sf::Clock clock;
-    thing.update(clock.getElapsedTime().asSeconds());
     while (window.isOpen())
     {
         sf::Event event;
@@ -668,13 +839,9 @@ int main()
                 window.close();
 
         }
-        mainUpdate(thing, thing2);
-        //clock.getElapsedTime().asSeconds();
-
+        game.update();
         window.clear();
-        window.draw(thing);
-        window.draw(thing2);
-        //window.draw(ground);
+        window.draw(game);
         window.display(); // this tries to enforce the frame limit
     }
     window.close();
