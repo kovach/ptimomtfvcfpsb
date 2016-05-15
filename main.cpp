@@ -72,72 +72,65 @@ float clamp(float min, float max, float v)
 float getJoyX(int id)
 {
     float v;
-    if (id == 0)
-        v = sf::Joystick::getAxisPosition(0, sf::Joystick::X);
-    else
-        v = sf::Joystick::getAxisPosition(0, sf::Joystick::U);
+    v = sf::Joystick::getAxisPosition(id, sf::Joystick::X);
     v = sign(v) * fmax(0.f, fabs(v)-20.f) * 1.25f;
     return v/100.f;
 }
 float getJoyY(int id)
 {
     float v;
-    if (id == 0)
-        v = sf::Joystick::getAxisPosition(0, sf::Joystick::Y);
-    else
-        v = sf::Joystick::getAxisPosition(0, sf::Joystick::V);
+    v = sf::Joystick::getAxisPosition(id, sf::Joystick::Y);
     v = sign(v) * fmax(0.f, fabs(v)-20.f) * 1.25f;
     return v/100.f;
 }
 
 bool getJumpButton(int id)
 {
-    if (id == 1) return false;
-    return sf::Joystick::isButtonPressed(0, 2);
+    return sf::Joystick::isButtonPressed(id, 2) || sf::Joystick::isButtonPressed(id, 3);
 }
 
-bool getDodgeButton()
+//bool getDodgeButton(int id)
+//{
+//    return sf::Joystick::isButtonPressed(id, 3);
+//}
+
+float getAttackButton(int id)
 {
-    return sf::Joystick::isButtonPressed(0, 3);
+    return sf::Joystick::isButtonPressed(id, 0);
 }
 
-float getAttackButton()
+float getGrabButton(int id)
 {
-    return sf::Joystick::isButtonPressed(0, 0);
-}
-
-float getGrabButton()
-{
-    return sf::Joystick::isButtonPressed(0, 1);
+    return sf::Joystick::isButtonPressed(id, 1);
 }
 
 enum Direction { None, Left, Right };
 
-Direction getLungeButton()
+Direction getLungeButton(int id)
 {
-    if (sf::Joystick::isButtonPressed(0, 4))
+    if (sf::Joystick::isButtonPressed(id, 4))
         return Left;
-    if (sf::Joystick::isButtonPressed(0, 5))
+    if (sf::Joystick::isButtonPressed(id, 5))
         return Right;
     return None;
 }
 
-string joystickState()
-{
-    bool connected = sf::Joystick::isConnected(0);
-    unsigned int buttons = sf::Joystick::getButtonCount(0);
-    bool hasX = sf::Joystick::hasAxis(0, sf::Joystick::X);
-    bool pressed = sf::Joystick::isButtonPressed(0, 2);
-    float position = sf::Joystick::getAxisPosition(0, sf::Joystick::Y);
-    std::ostringstream s;
-
-    for (int c = 0; c < buttons; c++) {
-        s << "button " << c << " " << sf::Joystick::isButtonPressed(0, c) << endl;
-    }
-    s << "attack " << getAttackButton() << endl;
-    s << "grab " << getGrabButton() << endl;
-    return s.str();
-}
+//string joystickState()
+//{
+//    bool connected = sf::Joystick::isConnected(0);
+//    unsigned int buttons = sf::Joystick::getButtonCount(0);
+//    bool hasX = sf::Joystick::hasAxis(0, sf::Joystick::X);
+//    bool pressed = sf::Joystick::isButtonPressed(0, 2);
+//    float position = sf::Joystick::getAxisPosition(0, sf::Joystick::Y);
+//    std::ostringstream s;
+//
+//    for (int c = 0; c < buttons; c++) {
+//        s << "button " << c << " " << sf::Joystick::isButtonPressed(0, c) << endl;
+//    }
+//    s << "attack " << getAttackButton(id) << endl;
+//    s << "grab " << getGrabButton(id) << endl;
+//    return s.str();
+//}
 string joystickPositions()
 {
     std::ostringstream s;
@@ -306,7 +299,7 @@ public:
         crouchDuration++;
 
         // Update lunge
-        Direction action = getLungeButton();
+        Direction action = getLungeButton(id);
         switch (lunge) {
             case Ready:
                 if (action == Left)
@@ -330,10 +323,10 @@ public:
         // Update attack
         switch (attack) {
             case AS_Ready:
-                if (getAttackButton()) {
+                if (getAttackButton(id)) {
                     attack = AS_Striking;
                 }
-                if (getGrabButton()) {
+                if (getGrabButton(id)) {
                     attack = AS_Grabbing;
                 }
                 initiateAttack();
@@ -520,7 +513,7 @@ public:
         if (!s_font.loadFromFile("noto.ttf"))
             exit(22);
         m_text.setFont(s_font);
-        m_text.setCharacterSize(36);
+        m_text.setCharacterSize(60);
         m_text.setColor(sf::Color(0,255,0,255));
         windowDim = dim;
 
@@ -561,7 +554,7 @@ public:
             exit(20);
         }
         s   << 1./dt << endl
-            << joystickState() << endl
+            // << joystickState() << endl
             << state() << endl
             << controller.toString(time) << endl;
 
