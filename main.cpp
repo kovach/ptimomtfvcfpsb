@@ -6,6 +6,15 @@
 
 using namespace std;
 
+float strike(float t)
+{
+    if (t < 0.25)
+        return t/0.25;
+    if (t < 0.5)
+        return 1-(t-0.25)/0.5;
+    return 0.5 - (t-.5)/(1-.5) * .5;
+}
+
 float sign(float x)
 {
     if (x > 0.f)
@@ -17,18 +26,29 @@ float getJoyX()
 {
     float v = sf::Joystick::getAxisPosition(0, sf::Joystick::X);
     v = sign(v) * fmax(0.f, fabs(v)-20.f) * 1.25f;
-    return v;
+    return v/100.f;
 }
 float getJoyY()
 {
     float v = sf::Joystick::getAxisPosition(0, sf::Joystick::Y);
     v = sign(v) * fmax(0.f, fabs(v)-20.f) * 1.25f;
-    return v;
+    return v/100.f;
 }
 
 bool getJumpButton()
 {
     return sf::Joystick::isButtonPressed(0, 2);
+}
+
+enum Direction { None, Left, Right };
+
+Direction getLungeButton()
+{
+    if (sf::Joystick::isButtonPressed(0, 4))
+        return Left;
+    if (sf::Joystick::isButtonPressed(0, 5))
+        return Right;
+    return None;
 }
 
 string joystickState()
@@ -39,161 +59,240 @@ string joystickState()
     bool pressed = sf::Joystick::isButtonPressed(0, 2);
     float position = sf::Joystick::getAxisPosition(0, sf::Joystick::Y);
     std::ostringstream s;
-    
+
     for (int c = 0; c < buttons; c++) {
         s << "button " << c << " " << sf::Joystick::isButtonPressed(0, c) << endl;
     }
-    //s << "joystick: "
-    //    << "connected: " << connected << endl
-    //    << "buttons: " << buttons << endl
-    //    << "pressed: " << pressed << endl
-    //    << "position: " << sf::Joystick::getAxisPosition(0, sf::Joystick::X) << endl
-    //    << "position: " << sf::Joystick::getAxisPosition(0, sf::Joystick::Y) << endl
-    //    << "position: " << sf::Joystick::getAxisPosition(0, sf::Joystick::Z) << endl
-    //    << "position: " << sf::Joystick::getAxisPosition(0, sf::Joystick::R) << endl
-    //    << "position: " << sf::Joystick::getAxisPosition(0, sf::Joystick::U) << endl
-    //    << "position: " << sf::Joystick::getAxisPosition(0, sf::Joystick::V) << endl;
+    return s.str();
+}
+string joystickPositions()
+{
+    std::ostringstream s;
+    s << "joystick: "
+        << "position: " << sf::Joystick::getAxisPosition(0, sf::Joystick::X) << endl
+        << "position: " << sf::Joystick::getAxisPosition(0, sf::Joystick::Y) << endl
+        << "position: " << sf::Joystick::getAxisPosition(0, sf::Joystick::Z) << endl
+        << "position: " << sf::Joystick::getAxisPosition(0, sf::Joystick::R) << endl
+        << "position: " << sf::Joystick::getAxisPosition(0, sf::Joystick::U) << endl
+        << "position: " << sf::Joystick::getAxisPosition(0, sf::Joystick::V) << endl;
     return s.str();
 }
 
 enum JumpState {
-    Ground, Crouching, Jumping, Floating
+    Ground, Crouching, Floating
 };
+string JumpStates[] = {
+    "Ground", "Crouching", "Floating"
+};
+enum LungeState {
+    Ready, Striking_Left, Striking_Right, Recovery
+};
+string LungeStates[] = {
+    "Ready", "Striking_Left", "Striking_Right", "Recovery"
+};
+// TODO needed?
 enum JumpEdge {
     StopJump, StartJump, NoEdge
 };
+
+const int fps = 60;
+const float groundLevel = 750.;
 
 class ControlState
 {
 public:
     JumpState jump;
-    float startCrouch;
-    const static float maxCrouch = 0.1f;
-    //const static float maxFloat = 2.2f;
+    LungeState lunge;
+    int facing;
+
+    sf::Vector2f p;
+    sf::Vector2f v;
+    float radius;
+
+    int crouchDuration;
+    int lungeDuration;
+    const static float maxCrouch = fps/10;
+    const static float maxLunge = fps/12;
+    const static float maxRecovery = fps/6;
+
+    const static float maxVertical = 5000;
+    const static float maxHorizontal = 3500;
+    const static float gravity = 15000.f;
+    const static float jumpForce = 19000.f;
 
     ControlState()
     {
-        jump = Ground;
-        startCrouch = 0.f;
+        resetJump();
+        jump = Floating;
+        resetLunge();
+        radius = 100.;
+        p.x = 0.f;
+        p.y = 0.f;
+        v.x = 0.f;
+        v.y = 0.f;
+
     }
 
-    void reset()
+    void resetJump()
     {
         jump = Ground;
+        crouchDuration = 0;
+    }
+    void resetLunge()
+    {
+        lunge = Ready;
+        lungeDuration = 0;
     }
 
-    JumpEdge update(float time)
+    void stateUpdate()
     {
-        //if (jump == Floating && time - lastJump > maxFloat) {
-        //    jump = Ground;
-        //    return NoEdge;
-        //}
-
+        // Update jump
         if (getJumpButton()) {
             if (jump == Ground) {
                 jump = Crouching;
-                startCrouch = time;
-                //return StartJump;
+                crouchDuration = 0;
             }
-            if (jump == Crouching && time - startCrouch > maxCrouch) {
+            if (jump == Crouching && crouchDuration > maxCrouch) {
                 jump = Floating;
             }
         } else {
             if (jump == Crouching)
                 jump = Floating;
         }
-        return NoEdge;
+        crouchDuration++;
+
+        // Update attack
+        Direction action = getLungeButton();
+        switch (lunge) {
+            case Ready:
+                if (action == Left)
+                    lunge = Striking_Left;
+                if (action == Right)
+                    lunge = Striking_Right;
+                lungeDuration = 0;
+                break;
+            case Striking_Left:
+            case Striking_Right:
+                if (lungeDuration > maxLunge)
+                    lunge = Recovery;
+                break;
+            case Recovery:
+                if (lungeDuration > maxRecovery)
+                    resetLunge();
+                break;
+        }
+        lungeDuration++;
+    }
+    void update(float dt)
+    {
+        stateUpdate();
+        getVelocity(dt);
+        p.x += dt * v.x;
+        p.y -= dt * v.y;
+
+        if (p.y > groundLevel) {
+            resetJump();
+            p.y = groundLevel;
+        }
+
+    }
+
+    void getVelocity(float dt)
+    {
+        switch(jump) {
+            case Ground:
+                if (lunge == Ready) {
+                    v.x = getJoyX() * 2500;
+                    facing = sign(v.x);
+                }
+                //vy -= gravity * dt;
+                v.y = 0.;
+                break;
+            case Crouching:
+                v.y += jumpForce * dt;
+                //vy = maxVertical * strike((float)crouchDuration/maxCrouch);
+                break;
+            case Floating:
+                float g = gravity;
+                v.y -= g * dt;
+                if (lunge == Striking_Right || lunge == Striking_Left)
+                    v.y = 0.;
+                break;
+        }
+
+        switch(lunge) {
+            case Ready:
+                break;
+            case Striking_Left:
+                v.x = -maxHorizontal * strike((float)lungeDuration/maxRecovery);
+                break;
+            case Striking_Right:
+                v.x = maxHorizontal * strike((float)lungeDuration/maxRecovery);
+                break;
+            case Recovery:
+                //vx = sign(vx) * maxHorizontal * strike(lungeDuration/maxRecovery);
+                break;
+        }
     }
 
     string toString(float time)
     {
-        //update(time);
-        switch (jump) {
-            case Ground:
-                return "Ground";
-                break;
-            case Crouching:
-                return "Crouching";
-                break;
-            case Floating:
-                return "Floating";
-                break;
-        }
+        std::ostringstream s;
+        s << JumpStates[jump] << endl << LungeStates[lunge];
+        return s.str();
     }
 };
+
+bool collision(ControlState s1, ControlState s2)
+{
+    sf::Vector2f v = s1.p - s2.p;
+    if (v.x*v.x + v.y*v.y < (s1.radius + s2.radius)^2) {
+        return true;
+    }
+    return false;
+}
 
 class Thing : public sf::Drawable
 {
 public:
     Thing()
     {
-        vx = 0.f;
-        vy = 0.f;
-        x = 0.f;
-        y = 0.f;
         if (!s_font.loadFromFile("noto.ttf"))
             exit(22);
         m_text.setFont(s_font);
+        m_text.setPosition(0.f, 0.f);
+        m_text.setCharacterSize(36);
+        m_text.setColor(sf::Color(255,128,0,255));
 
         if (!m_texture.loadFromFile("pt-crop.jpg"))
             exit(23);
         m_sprite.setTexture(m_texture);
         m_sprite.setScale(0.25f, 0.25f);
         m_sprite.setPosition(300, 300);
+
     }
     virtual ~Thing()
     {
     }
-    void update(float time, string str)
+    void update(float time)
     {
-        float dt = time - lastTime;
-        lastTime = time;
+        float dt = 1.0/60;
 
-        switch(controlState.jump) {
-            case Ground:
-                vx = getJoyX() * 25;
-                break;
-            case Crouching:
-            case Floating:
-                float goal = getJoyX() * 25;
-                break;
-        }
+        controlState.update(dt);
 
-        controlState.update(time);
-        switch(controlState.jump) {
-            case Ground:
-                vy -= gravity;
-                break;
-            case Crouching:
-                vy += 90.f;
-                break;
-            case Floating:
-                vy -= gravity;
-                break;
-        }
-
-        x += dt * vx;
-        y -= dt * vy;
-
-        if (y > 500.f) {
-            controlState.reset();
-            y = 500.f;
-            vy = 0.f;
-        }
-
-
-        m_sprite.setPosition(x, y);
+        m_sprite.setPosition(controlState.p.x, controlState.p.y);
 
         std::ostringstream s;
-        s
+        if (dt > 0.018f) {
+            cout << dt << endl;
+            exit(20);
+        }
+        s   << 1./dt << endl
             << joystickState() << endl
             << state() << endl
             << controlState.toString(time) << endl;
 
         m_text.setString(s.str());
-        m_text.setPosition(0.f, 0.f);
-        m_text.setCharacterSize(36);
-        m_text.setColor(sf::Color(255,128,0,255));
     }
     void draw(sf::RenderTarget& target, sf::RenderStates states) const
     {
@@ -210,17 +309,12 @@ private:
     sf::Texture m_texture;
     sf::Sprite m_sprite;
 
-    float x; float y;
-    float vx; float vy;
-    float lastTime;
-    const static float gravity = 60.f;
-
     string state()
     {
         std::ostringstream s;
         s
-            << "x: " << x << endl
-            << "y: " << y << endl;
+            << "x: " << controlState.p.x << endl
+            << "y: " << controlState.p.y << endl;
         return s.str();
     }
 
@@ -238,29 +332,43 @@ int main()
     //sf::CircleShape shape(100.f);
     //shape.setFillColor(sf::Color::Green);
 
+    sf::Vector2u dim = window.getSize();
+
+    sf::RectangleShape ground;
+    ground.setSize(sf::Vector2f(dim.x, 22));
+    ground.setPosition(0.,groundLevel);
+    ground.setFillColor(sf::Color(255,128,0,255));
+
+    //for (float f = 0.; f < 1.; f += 0.01)
+    //    cout << strike(f) << endl;
+    //exit(0);
+
     int c = 0;
+
+    window.setFramerateLimit(fps);
 
     Thing thing;
 
     sf::Clock clock;
-    thing.update(clock.getElapsedTime().asSeconds(), "hello world");
+    thing.update(clock.getElapsedTime().asSeconds());
     while (window.isOpen())
     {
-      sf::Event event;
-      while (window.pollEvent(event))
-      {
-        //std::cout << c++ << "!\n";
-        if (event.type == sf::Event::Closed)
-          window.close();
+        sf::Event event;
+        while (window.pollEvent(event))
+        {
+            //std::cout << c++ << "!\n";
+            if (event.type == sf::Event::Closed)
+                window.close();
 
-      }
-      thing.update(clock.getElapsedTime().asSeconds(), joystickState());
+        }
+        thing.update(0);
+        //clock.getElapsedTime().asSeconds();
 
-      window.clear();
-      window.draw(thing);
-      window.display();
+        window.clear();
+        window.draw(thing);
+        window.draw(ground);
+        window.display();
     }
-
-
+    window.close();
     return 0;
 }

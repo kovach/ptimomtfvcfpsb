@@ -1,24 +1,18 @@
 [x] choose a framework
-
 [x] motto: "frame perfect" physics
 
-
-game loop
-collision detection
-character animation
-
-gamepad
 
 non:
   network multiplayer
 
 todo: (+ reach)
-  blob
-  text rendering (+font deliberation)
+  [x] blob
+  [x] text rendering (+font deliberation)
   platform
-  gravity
+  [~] gravity
   collision for platform, attacks
-  joystick for movement (+ running)
+  [x] joystick for movement
+    (+ running)
   fighting
     - shoot projectiles?
     - (+ punches/animation)
@@ -28,6 +22,7 @@ todo: (+ reach)
   a 3d figure for our shader (+ a second figure)
   state transitions: start/end a match
 
+notes
 
 joysticks
 left: x/y
