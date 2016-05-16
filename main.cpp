@@ -27,15 +27,20 @@ void initValuationNames()
         valuations.push_back(vector<string>());
     valuations[0].push_back("ACQUIHIRED");
     valuations[0].push_back("DREAMS CRUSHED");
+    valuations[0].push_back("FLATTENED BY INVISIBLE HAND");
+    valuations[0].push_back("\"AHEAD OF ITS TIME\"");
     valuations[1].push_back("REALITY SETS IN");
     valuations[1].push_back("2-MONTH RUNWAY");
+    valuations[1].push_back("BURNOUT");
     valuations[2].push_back("USELESS PRODUCT");
     valuations[2].push_back("PIVOT");
     valuations[2].push_back("REFUTED BY SCIENCE");
     valuations[3].push_back("CTO LEFT");
     valuations[3].push_back("SERIES A");
+    valuations[3].push_back("DOMAIN NAME TAKEN");
     valuations[4].push_back("GREAT IDEA!");
     valuations[4].push_back("BOUNDLESS OPTIMISM");
+    valuations[4].push_back("I'M GONNA LIVE FOREVER!");
 }
     
 
