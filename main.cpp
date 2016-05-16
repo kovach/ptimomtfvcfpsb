@@ -815,7 +815,7 @@ void mainUpdate(Char &t1, Char &t2)
 int main()
 {
     srand(time(0));
-    sf::RenderWindow window(sf::VideoMode(200, 200), "SFML works!");
+    sf::RenderWindow window(sf::VideoMode(200, 200), "lol");
     window.setFramerateLimit(fps);
 
     initValuationNames();
