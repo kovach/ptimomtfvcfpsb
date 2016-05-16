@@ -1,4 +1,5 @@
 #include <SFML/Graphics.hpp>
+#include <SFML/OpenGL.hpp>
 #include <SFML/System/Vector2.hpp>
 #include <iostream>
 #include <sstream>
@@ -815,7 +816,8 @@ void mainUpdate(Char &t1, Char &t2)
 int main()
 {
     srand(time(0));
-    sf::RenderWindow window(sf::VideoMode(200, 200), "lol");
+    sf::RenderWindow window(sf::VideoMode(2560, 1440), "lol");
+    glViewport(0, 0, 2560, 1440);
     window.setFramerateLimit(fps);
 
     initValuationNames();
