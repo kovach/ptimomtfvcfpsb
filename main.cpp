@@ -609,10 +609,11 @@ public:
         m_text.setString(controller.valuationLabel);
         sf::FloatRect bounds = m_text.getLocalBounds();
         float x;
+        float offset = 120.f;
         if (controller.id == 0)
-            x = 70;
+            x = offset;
         else
-            x = windowDim.x - bounds.width - 70;
+            x = windowDim.x - bounds.width - offset;
         m_text.setPosition(x, windowDim.y-150.f);
         
 
