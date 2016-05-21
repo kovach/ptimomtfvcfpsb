@@ -9,7 +9,7 @@ using namespace std;
 
 int maxValuation = 4;
 
-string titleString = "PETER THIEL IS MADE OF MONEY\nA VC Fueled Post-Singularity Brawler";
+string titleString = "PETER THIEL IS MADE OF MONEY\nA VC Fueled Post-Singularity Brawler\n\nPRESS A TO START";
 
 sf::Color valuationColors[] = {
     sf::Color::Red,
@@ -107,12 +107,14 @@ int getAttackButton(int id)
 
 int getStartButton(int id)
 {
-    return sf::Joystick::isButtonPressed(id, 7);
+    //return sf::Joystick::isButtonPressed(id, 7);
+    return sf::Joystick::isButtonPressed(id, 0);
 }
 
 int getSelectButton(int id)
 {
-    return sf::Joystick::isButtonPressed(id, 6);
+    //return sf::Joystick::isButtonPressed(id, 6);
+    return sf::Joystick::isButtonPressed(id, 0);
 }
 
 int getGrabButton(int id)
@@ -711,6 +713,8 @@ public:
 
     int dying;
 
+    bool restartButtonDown;
+
     sf::Vector2u windowDim;
 
     Game(sf::Vector2u dim) :
@@ -734,10 +738,11 @@ public:
         m_text.setColor(sf::Color(0,255,0,255));
         sf::FloatRect bounds = m_text.getLocalBounds();
         m_text.setPosition(windowDim.x/2 - bounds.width/2., windowDim.y/2-bounds.height/2);
-        // Game state
+        // Game transition state
         state = GS_Starting;
         dying = -1;
         endDuration = 0;
+        restartButtonDown = true;
         // Char state
         thing1.reset();
         thing2.reset();
@@ -752,6 +757,7 @@ public:
             dying = 1;
         if (dying != -1) {
             state = GS_Ending;
+            restartButtonDown = true;
             update();
         }
     }
@@ -765,8 +771,10 @@ public:
         {
             case GS_Starting:
                 if (getStartButton(0) || getStartButton(1)) {
+                  if (!restartButtonDown)
                     state = GS_Playing;
-                }
+                } else
+                  restartButtonDown = false;
                 break;
             case GS_Playing:
                 thing1.update(0);
@@ -787,8 +795,10 @@ public:
                 updatePixelation(r);
                 m_text.setPosition(p.x, p.y);
                 if (getSelectButton(0) || getSelectButton(1)) {
+                  if (!restartButtonDown)
                     resetGame();
-                }
+                } else
+                  restartButtonDown = false;
                 break;
         }
     }
